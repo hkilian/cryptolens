@@ -1,5 +1,7 @@
-import requests
+import time
 import json
+
+import requests
 import click
 
 # Main entry point for CLI
@@ -7,26 +9,43 @@ import click
 @click.option('--exchange', default="Bitfinex", help='Exchange in which to pull prices')
 @click.argument('symbol')
 def main(exchange, symbol):
+			
+	data = pullData()
+	if not data:
+		click.secho('Could not connect', fg="red")
+		return
 
-		url = "https://api.bitfinex.com/v2/ticker/tBTCUSD"
-		response = requests.get(url)
+	# Echo price
+	click.secho('Bitfinex: ', bold=False, nl=False)
+	click.secho('BTC/USD at ', bold=True, nl=False)
+	click.echo(click.style('$%s' %data['price'], bold=True), nl=False)
 
-		ticker = response.json()
-		price = ticker[6]
-		change = ticker[4]
-		percentChange = ticker[5]
-		volume = ticker[7]
+	# Echo daily change
+	dailyChangeColor = "green"
+	if data['percentChange'] < 0:
+		dailyChangeColor = "red"
 
-		# Echo price
-		click.secho('BTC/USD at ', bold=True, nl=False)
-		click.echo(click.style('$%s' %price, bold=True,), nl=False)
+	click.secho(' (%%%s)' %data['percentChange'], fg=dailyChangeColor)
 
-		# Echo daily change
-		dailyChangeColor = "green"
-		if percentChange < 0:
-			dailyChangeColor = "red"
 
-		click.secho(' (%%%s)' %percentChange, fg=dailyChangeColor)
+
+def pullData():
+
+	url = "https://api.bitfinex.com/v2/ticker/tBTCUSD"
+	response = requests.get(url)
+	ticker = response.json()
+
+	if len(ticker) != 10:
+		click.echo(click.style('%s' %ticker, bold=True))
+		return False
+
+	data = {}
+	data['price'] = ticker[6]
+	data['change'] = ticker[4]
+	data['percentChange'] = ticker[5]
+	data['volume'] = ticker[7]
+
+	return data
 
 if __name__ == '__main__':
     main()
