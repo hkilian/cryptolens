@@ -1,2 +1,2 @@
 # Crypto Scout
-Command line tool to check the prices and charts of crypto coins and a crypto portfolio.
+Command line tool to check the prices of crypto coins and crypto portfolios.
