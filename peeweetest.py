@@ -15,8 +15,21 @@ class Coin(Model):
     class Meta:
         database = db # This model uses the "people.db" database.
 
+class Symbol(Model):
+    name = CharField()
+
+    class Meta:
+        database = db # This model uses the "people.db" database.
+
+class CoinSymbols(Model):
+    coin = ForeignKeyField(Coin)
+    symbol = ForeignKeyField(Symbol)
+
 db.connect()
-db.create_tables([Coin])
+
+# Create tables if they dont exist
+if not Coin.table_exists():
+	db.create_tables([Coin])
 
 bitcoin = Coin(name='Bitcoin', symbol="BTC")
 bitcoin.save()
