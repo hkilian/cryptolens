@@ -1,8 +1,12 @@
+from peewee import *
+from database import *
 
-class Exchange:
+class Exchange(Model):
 
-    def __init__(self, name):
-        self.name = name
+	name = CharField()
 
-    def Name(self):
-        return self.name
+	class Meta:
+		database = db
+
+	def Name(self):
+		return self.name

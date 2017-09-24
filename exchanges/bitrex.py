@@ -4,8 +4,8 @@ from .exchange import Exchange
 
 class Bitrex(Exchange):
 
-	def __init__(self):
-		 Exchange.__init__(self, "Bitrex")
+	def UpdateMarkets(self):
+		url = "https://bittrex.com/api/v1.1/public/getticker?market=USDT-BTC"
 
 	def PullData(self):
 		url = "https://bittrex.com/api/v1.1/public/getticker?market=USDT-BTC"

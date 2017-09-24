@@ -1,35 +1,47 @@
 import os
 from peewee import *
+import database
+from coin import *
+from exchanges.exchange import Exchange
+from exchanges.bitrex import Bitrex
 
 # Used to get path of this script
 __location__ = os.path.realpath(
 	os.path.join(os.getcwd(), os.path.dirname(__file__)))
 
-db = SqliteDatabase(__location__ + '/people.db')
-
-class Coin(Model):
-    name = CharField()
-    symbol = CharField()
-    creation = DateTimeField(constraints=[SQL('DEFAULT CURRENT_TIMESTAMP')])
-
-    class Meta:
-        database = db # This model uses the "people.db" database.
-
-class Symbol(Model):
-    name = CharField()
-
-    class Meta:
-        database = db # This model uses the "people.db" database.
-
-class CoinSymbols(Model):
-    coin = ForeignKeyField(Coin)
-    symbol = ForeignKeyField(Symbol)
-
-db.connect()
-
 # Create tables if they dont exist
 if not Coin.table_exists():
 	db.create_tables([Coin])
+	db.create_tables([Symbol])
+	db.create_tables([CoinSymbol])
+	db.create_tables([Market])
+	db.create_tables([Exchange])
 
-bitcoin = Coin(name='Bitcoin', symbol="BTC")
+# Fiat
+usd = Coin(name='USD', fiat=True)
+usd.save()
+
+# Bitcoin
+bitcoin = Coin(name='Bitcoin')
 bitcoin.save()
+
+btcSymbol = Symbol(name='BTC')
+btcSymbol.save()
+
+bitcoinSymbol = CoinSymbol(coin=bitcoin, symbol=btcSymbol)
+bitcoinSymbol.save()
+
+# Bitrex exchange
+bitrex = Bitrex()
+bitrex.save()
+
+btcusdBitrex = Market(exchange=bitrex, coin1=bitcoin, coin2=usd)
+btcusdBitrex.save()
+
+
+
+
+
+
+
+
