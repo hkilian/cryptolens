@@ -1,8 +1,9 @@
 from peewee import *
 from database import *
-from exchanges.exchange import Exchange
+from exchanges.exchange import ExchangeInfo
 
-class Coin(Model):
+class Asset(Model):
+
     name = CharField()
     fiat = BooleanField(default=False)
     creation = DateTimeField(constraints=[SQL('DEFAULT CURRENT_TIMESTAMP')])
@@ -16,8 +17,8 @@ class Symbol(Model):
     class Meta:
         database = db
 
-class CoinSymbol(Model):
-    coin = ForeignKeyField(Coin)
+class AssetSymbol(Model):
+    asset = ForeignKeyField(Asset)
     symbol = ForeignKeyField(Symbol)
 
     class Meta:
@@ -25,9 +26,9 @@ class CoinSymbol(Model):
 
 class Market(Model):
 
-    exchange = ForeignKeyField(Exchange)
-    coin1 = ForeignKeyField(Coin, related_name='coin1_coin')
-    coin2 = ForeignKeyField(Coin, related_name='coin2_coin')
+    exchange = ForeignKeyField(ExchangeInfo)
+    marketAsset = ForeignKeyField(Asset, related_name='market_asset')
+    baseAsset = ForeignKeyField(Asset, related_name='base_asset')
 
     creation = DateTimeField(constraints=[SQL('DEFAULT CURRENT_TIMESTAMP')])
 

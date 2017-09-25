@@ -1,6 +1,0 @@
-BEGIN TRANSACTION;
-CREATE TABLE IF NOT EXISTS `Coins` (
-	`Name`	TEXT,
-	`Symbol`	TEXT
-);
-COMMIT;
