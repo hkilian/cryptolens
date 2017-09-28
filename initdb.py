@@ -69,7 +69,7 @@ def initdb():
 				symbolLink = AssetSymbol(asset=marketAsset, symbol=marketSymbol)
 				symbolLink.save()
 
-		click.secho(market['MarketCurrency'] + '-' + market['BaseCurrency'], bold=False)
+		#click.secho(market['MarketCurrency'] + '-' + market['BaseCurrency'], bold=False)
 
 
 
