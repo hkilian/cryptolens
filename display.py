@@ -76,10 +76,13 @@ class Display:
 
 	def ShowLoading(self, loadingText):
 
-		text = urwid.Text(loadingText)
-		padding = urwid.Padding(text, align='center', width='pack')
+		self.text = urwid.Text(loadingText)
+		padding = urwid.Padding(self.text, align='center', width='pack')
 		filler = urwid.Filler(padding, valign='middle')
 		self.mainPileList.append(filler)
+
+	def Update(self, text):
+		self.text.set_text(text)
 
 	def ShowTable(self):
 
