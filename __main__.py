@@ -10,7 +10,9 @@ if os.path.exists('test.db'):
 	#os.remove('test.db')
 	True
 
-from display import Display
+from display.displaycommon import *
+from display.displayhome import DisplayHome
+from display.displaymarket import DisplayMarket
 from initdb import *
 from exchanges.bitfinex import Bitfinex
 from exchanges.gdax import GDAX
@@ -29,33 +31,31 @@ palette = [
 	('change negative', 'dark red', '')]
 
 loop = asyncio.get_event_loop()
-display = Display()
 
-# Entry point
-def main():
+display = DisplayHome()
+display.ShowLoading("Loading latest market data to database...")
+display.ShowTopCoins()
+display.PrepareBody()
 
-	display.ShowLoading("Loading latest market data to database...")
-	display.Show()
+header = Header()
+footer = Footer()
 
-	loop.call_later(0.1, constantUpdate)
+# Create the view
+view = urwid.Frame(header=header, body=display.body, footer=footer)
+view = urwid.Padding(view, left=2, right=2)
 
-	# Run initdb if missing db
-	if not Asset.table_exists():
-		initdb()
-		display.Update("Database Updated")
-	else:
-		display.Update("Database already updated")
-
-
-
-	# Main urwid loop
-	urwid_loop = urwid.MainLoop(display.view, palette,
-	 						input_filter=input_filter,
-	 						event_loop=urwid.AsyncioEventLoop(loop=loop))
-	urwid_loop.run()
+# Run initdb if missing db
+if not Asset.table_exists():
+	initdb()
+	display.Update("Database Updated")
+else:
+	display.Update("Database already updated")
 
 def rPressed():
-	display.Update("UPDATED")
+	display = DisplayMarket()
+	display.ShowOrderBook()
+	display.PrepareBody()
+	view.original_widget.body = display.body
 
 def constantUpdate():
 
@@ -71,5 +71,11 @@ def input_filter(keys, raw):
 
 	if 'r' in keys or 'R' in keys:
 		rPressed()
-if __name__ == '__main__':
-    main()
+
+
+# Main urwid loop
+urwid_loop = urwid.MainLoop(view, palette,
+ 						input_filter=input_filter,
+ 						event_loop=urwid.AsyncioEventLoop(loop=loop))
+urwid_loop.run()
+
