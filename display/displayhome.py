@@ -1,5 +1,77 @@
+import asyncio
 import urwid
+import websockets
+import json
 from .displaycommon import *
+from exchanges.bitfinex import Bitfinex
+
+class HomeModel:
+	def __init__(self):
+		self.latest_price = 0
+		#asyncio.Task(self.get_price())
+		asyncio.Task(self.get_orders())
+
+	@asyncio.coroutine
+	def get_price(self):
+		while True:
+			bitfinex = Bitfinex()
+			data = bitfinex.PullData()
+			self.latest_price = data['price']
+			yield from asyncio.sleep(1)
+
+	@asyncio.coroutine
+	def get_orders(self):
+		websocket = yield from websockets.connect('wss://api.bitfinex.com/ws/2')
+		sendData = json.dumps({ "event":"subscribe", "channel": "trades", "pair": "BTCUSD" })
+		
+		yield from websocket.send(sendData)
+
+		while True:
+			result = yield from websocket.recv()
+			result = json.loads(result)
+
+
+			self.latest_price = result
+
+			
+
+class HomeView(urwid.WidgetWrap):
+	def __init__(self, controller):
+		self.controller = controller
+		self.main_text = urwid.Text("empty")
+
+		self.__super.__init__(self.main_window())
+
+	def update(self):
+		price = "Bitcoin = " + str(self.controller.get_price_data())
+		self.main_text.set_text(price)
+
+	def main_window(self):
+		price = str(self.controller.get_price_data())
+		w = urwid.Filler(self.main_text)
+		return w
+
+class HomeController:
+	def __init__(self):
+		self.model = HomeModel()
+		self.view = HomeView(self)
+
+	def set_loop(self, loop):
+		self.loop = loop
+		self.update_price()
+
+	def update_price(self, loop=None, user_data=None):
+		self.view.update()
+		self.update_alarm = self.loop.set_alarm_in(1, self.update_price)
+
+	def get_price_data(self):
+		return self.model.latest_price;
+
+	
+
+
+
+
 
 class DisplayHome:
 
