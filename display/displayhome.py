@@ -22,16 +22,28 @@ class HomeModel:
 	@asyncio.coroutine
 	def get_orders(self):
 		websocket = yield from websockets.connect('wss://api.bitfinex.com/ws/2')
-		sendData = json.dumps({ "event":"subscribe", "channel": "trades", "pair": "BTCUSD" })
+		sendData = json.dumps({ "event":"subscribe", "channel": "book", "pair": "BTCUSD", "prec": "p0", "freq": "f0", "len": "25"})
 		
-		yield from websocket.send(sendData)
+		try:
+			yield from websocket.send(sendData)
 
-		while True:
-			result = yield from websocket.recv()
-			result = json.loads(result)
+			while True:
 
+				result = yield from websocket.recv()
 
-			self.latest_price = result
+				if result is not None:
+
+					json_string = '{"first_name": "Guido", "last_name":"Rossum"}'
+					parsed_json = json.loads(json_string)
+
+					try:
+						result = json.loads(result)
+						self.latest_price = result[1][0]
+					except:
+						pass
+
+		finally:
+			yield from websocket.close()
 
 			
 
@@ -62,7 +74,7 @@ class HomeController:
 
 	def update_price(self, loop=None, user_data=None):
 		self.view.update()
-		self.update_alarm = self.loop.set_alarm_in(1, self.update_price)
+		self.update_alarm = self.loop.set_alarm_in(0.05, self.update_price)
 
 	def get_price_data(self):
 		return self.model.latest_price;
