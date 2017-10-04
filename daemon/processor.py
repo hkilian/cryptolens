@@ -7,8 +7,14 @@ import time
 
 class Processor:
 	def __init__(self):
+
 		self.close = False
 		self.latest_price = 0
+
+		self.transactionsProcessed = 0
+		self.totalLatency = 0
+		self.averageTransactionTime = 0
+
 		#asyncio.Task(self.get_price())
 		asyncio.Task(self.get_orders())
 
@@ -46,15 +52,21 @@ class Processor:
 						timestamp = data[1]
 						price = data[2]
 
-						ourTimestamp = int(time.time())
-						timeSinceTransaction = int(str(ourTimestamp) + "000") - timestamp
-						timeSinceTransaction = timeSinceTransaction / 1000
+						ourTimestamp = int(time.time() * 1000)
+						timeSinceTransaction = (ourTimestamp - timestamp) / 100.0
 
 						#print("ourTimestamp = " + str(ourTimestamp) + " - trade time = " + str(timestamp))
+						timestampOut = "(transTime = " + str(timestamp) + ", outTime = " + str(ourTimestamp) + ")"
+						#print("Price = " + str(price) + " (" + str(timeSinceTransaction) + "ms) ")
 
-						print("Price = " + str(price) + " (" + str(timeSinceTransaction) + "ms)")
+						self.totalLatency += timeSinceTransaction
+						self.transactionsProcessed += 1
+						self.averageTransactionTime = self.totalLatency / self.transactionsProcessed
 
-					self.latest_price = result[1][0]
+						os.system('clear')
+						print("Price: " + str(price))
+						print("Transactions: " + str(self.transactionsProcessed))
+						print("Avg latancy: " + str(self.averageTransactionTime) + " ms")
 
 				except:
 					pass
