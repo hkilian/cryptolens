@@ -4,8 +4,11 @@ import requests
 import websockets
 import asyncio
 import time
+from orderbook import *
+from sortedcontainers import SortedDict
 
 class Processor:
+
 	def __init__(self):
 
 		self.close = False
@@ -14,6 +17,8 @@ class Processor:
 		self.transactionsProcessed = 0
 		self.totalLatency = 0
 		self.averageTransactionTime = 0
+
+		self.orderbook = Orderbook()
 
 		#asyncio.Task(self.get_price())
 		asyncio.Task(self.get_orders())
@@ -50,7 +55,8 @@ class Processor:
 
 						data = result[2]
 						timestamp = data[1]
-						price = data[2]
+						price = data[3]
+						amount = data[2]
 
 						ourTimestamp = int(time.time() * 1000)
 						timeSinceTransaction = (ourTimestamp - timestamp) / 100.0
@@ -63,10 +69,20 @@ class Processor:
 						self.transactionsProcessed += 1
 						self.averageTransactionTime = self.totalLatency / self.transactionsProcessed
 
+						self.orderbook.add_order(price, amount)
+
 						os.system('clear')
+
+						print(result)
+
 						print("Price: " + str(price))
-						print("Transactions: " + str(self.transactionsProcessed))
-						print("Avg latancy: " + str(self.averageTransactionTime) + " ms")
+						print("Orderbook size: " + str(len(self.orderbook.buyOrders)))
+
+						for key in self.orderbook.buyOrders:
+							print(str(key))
+
+						#print("Transactions: " + str(self.transactionsProcessed))
+						#print("Avg latancy: " + str(self.averageTransactionTime) + " ms")
 
 				except:
 					pass
