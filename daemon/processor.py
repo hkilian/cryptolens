@@ -69,17 +69,30 @@ class Processor:
 						self.transactionsProcessed += 1
 						self.averageTransactionTime = self.totalLatency / self.transactionsProcessed
 
-						self.orderbook.add_order(price, amount)
-
 						os.system('clear')
+
+						self.orderbook.add_order(price, amount)
 
 						print(result)
 
-						print("Price: " + str(price))
+						print("Last order price: " + str(price))
+						print("Last order amount: " + str(amount))
+						print("Total orders processed: " + str(self.transactionsProcessed))
 						print("Orderbook size: " + str(len(self.orderbook.buyOrders)))
 
-						for key in self.orderbook.buyOrders:
-							print(str(key))
+						print("")
+						print(" - - Sell Orders - - ")
+
+						for key in self.orderbook.sellOrders.islice(0, 5, reverse=True):
+							print(str(key) + " - " +  str(self.orderbook.sellOrders[key]))
+
+						print(" - - Buy Orders - - ")
+
+						for key in self.orderbook.buyOrders.islice(0, 5, reverse=True):
+							print(str(key) + " - " +  str(self.orderbook.buyOrders[key]))
+
+						print(" - - - - - - - - - ")
+						print("Best Price = " + " - " +  str(self.orderbook.get_best_price()))
 
 						#print("Transactions: " + str(self.transactionsProcessed))
 						#print("Avg latancy: " + str(self.averageTransactionTime) + " ms")

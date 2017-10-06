@@ -11,7 +11,9 @@ class Orderbook:
 
 	def add_order(self, price, amount):
 
-		if price > 0:
+		print("PRICE = " + str(price))
+
+		if price > 0.0:
 			# Buy orders
 			if price in self.buyOrders:
 				updatedAmount = self.buyOrders[price] + amount
@@ -21,10 +23,10 @@ class Orderbook:
 		else:
 			# Sell orders
 			if price in self.sellOrders:
-				updatedAmount = self.buyOrders[price] + amount
-				self.buyOrders[price] = updatedAmount
+				updatedAmount = self.sellOrders[price] + amount
+				self.sellOrders[price] = updatedAmount
 			else:
-				self.buyOrders[price] = amount
+				self.sellOrders[price] = amount
 
 """
 orderbook = Orderbook()
