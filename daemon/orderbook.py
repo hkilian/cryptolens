@@ -25,6 +25,7 @@ class Orderbook:
 		self.total_orders_removed = 0
 
 		self.volume_processed = 0
+		self.order_change_volume = 0
 
 	def get_best_price(self):
 		bestBuy = self.buyOrders.keys()[len(self.buyOrders)-1]
@@ -96,9 +97,13 @@ class Orderbook:
 		# Look for existing order with id
 		if order_id in self.order_list:
 			logging.info("Found existing order with given id(" + str(order_id) + ")")
-			self.order_list[order_id] = [price, amount]
+			self.order_change_volume += abs(amount)
+
+			current_amount = self.order_list[order_id][1]
+			self.order_list[order_id] = [price, current_amount + amount]
 		else:
 			# Add to order to order list
+			logging.info("Creating new order with given id(" + str(order_id) + ")")
 			abs_amount = abs(amount)
 			self.order_list[order_id] = [price, amount]
 

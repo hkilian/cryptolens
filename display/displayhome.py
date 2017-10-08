@@ -116,6 +116,8 @@ class HomeView(urwid.WidgetWrap):
 				best_sell = price
 		info_data.append(['Best sell', best_sell])
 
+		info_data.append(['Order volume change', orderbook.order_change_volume])
+
 		info_data.append(['-', '-'])
 
 		total_volume_actual = 0;
