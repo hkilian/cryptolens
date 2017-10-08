@@ -6,8 +6,10 @@ import asyncio
 import time
 import itertools
 import logging
-from .orderbook import *
 from sortedcontainers import SortedDict
+
+import config
+from .orderbook import *
 
 logging.basicConfig(filename='example.log',level=logging.INFO)
 #logging.getLogger().setLevel(logging.INFO)
@@ -16,17 +18,30 @@ class BitfinexProcessor:
 
 	def __init__(self):
 
-		self.close = False
-		self.latest_price = 0
+		# Expected api version number for websockets
+		self.expected_ws2_version = 2.0
 
-		self.transactionsProcessed = 0
-		self.totalLatency = 0
-		self.averageTransactionTime = 0
-
+		# Orderbook
 		self.orderbook = Orderbook()
 
-		#asyncio.Task(self.get_price())
+		# True if we are connected to the websocket
+		self.connected = False
+		self.connecting = False
+
+		# Connect to websocket and subscribe to channels
+		asyncio.Task(self.connect_and_subscribe())
+
+	@asyncio.coroutine
+	def connect_and_subscribe(self):
+
+		logging.info("Connecting and subscribing")
+
+		# Connect to websocket
+		yield from asyncio.Task(self.connect_to_websocket())
+
+		# Subscribe to raw books channel
 		asyncio.Task(self.get_orders())
+
 
 	def process_full_order_book(self):
 
@@ -42,7 +57,7 @@ class BitfinexProcessor:
 		for bid in bids:
 			
 			try:
-			    price = float(bid["price"])
+			    price = Decimal(bid["price"])
 			except ValueError:
 			    logging.info("Price is invalid")
 			    continue
@@ -91,46 +106,109 @@ class BitfinexProcessor:
 			yield from asyncio.sleep(1)
 
 	@asyncio.coroutine
+	def connect_to_websocket(self):
+
+		# Flag that we are attempting connection
+		self.connecting = True
+
+		# Connect to bitfinex websocket
+		self.websocket = yield from websockets.connect('wss://api.bitfinex.com/ws/2')
+
+		# Wait for a confirmation of connection from bitfinex
+		# Should look like this:
+		# {"event":"info","version":2}
+		try:
+			logging.info("Attempting connection to websocket...")
+
+			received_event_payload = False
+			while received_event_payload == False:
+
+				result = yield from self.websocket.recv()
+				result = json.loads(result)
+
+				# Look for event payload
+				if 'event' in result:
+
+					version = result['version']
+
+					if version != self.expected_ws2_version:
+						logging.error('Unexpected version number ' + str(version) + ' received from bitfinex, expected version ' + str(self.expected_ws2_version))
+						self.connected = False
+						self.connecting = False
+						break
+
+					received_event_payload = True
+					logging.info("Received event payload: " + str(result))
+
+					self.connecting = False
+					self.connected = True
+
+					continue
+
+			if self.connected:
+				logging.info("Connection successfully established!")
+			else:
+				logging.critical("Problem connecting to bitfinex, look at logs.")
+
+		finally:
+			self.connected = False
+
+	@asyncio.coroutine
 	def get_orders(self):
 
-		websocket = yield from websockets.connect('wss://api.bitfinex.com/ws/2')
-		sendData = json.dumps({ "event":"subscribe", "channel": "book", "pair": "tBTCUSD", "prec": "R0", "len":"100"})
+		# Wait for connection to establish
+		if self.connected == False and self.connecting == True:
 
-		eventPayloadReceived = False
-		subscribedPayloadReceived = False
-		snapshotPayloadReceived = False
+			logging.info("Waiting for websocket to connect before subscribing to raw books channel...")
 
-		# Pull in the complete orderbook
-		#self.process_full_order_book()
+			while self.connected == False:
+
+				asyncio.sleep(1)
+
+				if self.connecting == False and self.connected == False:
+					logging.error("Could not subscribe to order channel as no websocket is connected!")
+		else:
+
+			logging.info("Websocket connection found, subscribing to channel...")
+				
+
+		# Subscribe to most raw books channel
+		subscribe_raw = json.dumps({ "event":"subscribe", "channel": "book", "pair": "tBTCUSD", "prec": "R0", "len":"100"})
+
+		# Flag waiting for websocket responses
+		got_subscribed_payload = False
+		got_snapshot_payload = False
 
 		try:
-			yield from websocket.send(sendData)
-			logging.info("Sending request over wss")
+
+			yield from self.websocket.send(subscribe_raw)
+
+			logging.info("Sending channel subscribe request...")
 
 			while True:
 
-				result = yield from websocket.recv()
+				result = yield from self.websocket.recv()
 				result = json.loads(result)
 
-				logging.info(result)
-
-				# Look for first event payload
-				if len(result) == 2 and eventPayloadReceived == False:
-					eventPayloadReceived = True
-					logging.info("Got event payload")
+				# Look for subscribed payload
+				if got_subscribed_payload == False and 'event' in result and result['event'] == 'subscribed':
+					got_subscribed_payload = True
+					logging.info("Received subscribe event!")
 					continue
 
-				# Look for subscribed payload
-				if len(result) == 8 and subscribedPayloadReceived == False:
-					subscribedPayloadReceived = True
-					logging.info("Got subscribed")
+				# Do not proceed if not subscribed
+				if got_subscribed_payload == False:
 					continue
 
-				# Look for subscribed payload
-				if len(result) == 2 and snapshotPayloadReceived == False:
-					snapshotPayloadReceived = True
+				# Look for snapshot payload
+				if got_snapshot_payload == False and len(result) == 2:
+					got_snapshot_payload = True
 					logging.info("Got snapshot")
 					self.process_snapshot(result)
+					continue
+
+				# Do not proceed without snapshot
+				if got_snapshot_payload == False:
 					continue
 
 				# Look for heatbeat
@@ -141,7 +219,7 @@ class BitfinexProcessor:
 				data = result[1]
 				timestamp = data[0]
 				price = data[1]
-				amount = data[2]
+				amount = Decimal(data[2])
 				order_id = int(data[0])
 
 				if price == 0:
@@ -153,13 +231,7 @@ class BitfinexProcessor:
 
 				#logging.info("ourTimestamp = " + str(ourTimestamp) + " - trade time = " + str(timestamp))
 				timestampOut = "(transTime = " + str(timestamp) + ", outTime = " + str(ourTimestamp) + ")"
-				#logging.info("Price = " + str(price) + " (" + str(timeSinceTransaction) + "ms) ")
-
-				self.totalLatency += timeSinceTransaction
-				self.transactionsProcessed += 1
-				self.averageTransactionTime = self.totalLatency / self.transactionsProcessed
-
-				#os.system('clear')
+				#logging.info("Price = " + str(price) + " (" + str(timeSinceTransaction) + "ms) "
 
 				# Disable logging.info
 				sys.stdout = open(os.devnull, 'w')
@@ -170,38 +242,39 @@ class BitfinexProcessor:
 				# Enable logging.info
 				sys.stdout = sys.__stdout__
 
-				logging.info(result)
-
 		finally:
-			yield from websocket.close()
+			yield from self.websocket.close()
 
 	def process_snapshot(self, result):
 
+		btotal_volume = 0;
+		for order in self.orderbook.buyOrders.keys():
+			btotal_volume += self.orderbook.buyOrders[order]
+
+		logging.info("Total volume before (" + str(btotal_volume) + ")")
+
 		data = result[1]
 
-		logging.info("LOOK HERE")
-		logging.info(data)
+		logging.info("Processing snapshot data...")
 
+		total_volume = 0
 		for order in data:
 			order_id = order[0]
 			price = order[1]
-			amount = order[2]
+
+			amount = Decimal(order[2])
+
+			total_volume += amount
+
 			self.orderbook.add_order(order_id, price, amount)
+
+		logging.info("Finished processing snapshot data. Total volume (" + str(total_volume) + ")")
+
+		rtotal_volume = 0;
+		for order in self.orderbook.buyOrders.keys():
+			rtotal_volume += self.orderbook.buyOrders[order]
+
+		logging.info("Total volume (" + str(rtotal_volume) + ")")
 				
 
-"""
-# Runs until processor signal exit
-async def main():
-	processor = BitfinexProcessor()
-
-	logging.info("Running now...")
-
-	while processor.close == False:
-		await asyncio.sleep(1)
-
-
-loop = asyncio.get_event_loop()
-loop.run_until_complete(main())
-loop.close()
-"""
 

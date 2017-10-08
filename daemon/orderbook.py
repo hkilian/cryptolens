@@ -1,6 +1,10 @@
+from decimal import *
 import sys, os
 import logging
 from sortedcontainers import SortedDict
+import config
+
+logging.basicConfig(filename='example.log',level=logging.INFO)
 
 class Orderbook:
 
@@ -20,6 +24,8 @@ class Orderbook:
 		self.total_sell_orders_processed = 0
 		self.total_orders_removed = 0
 
+		self.volume_processed = 0
+
 	def get_best_price(self):
 		bestBuy = self.buyOrders.keys()[len(self.buyOrders)-1]
 		return bestBuy
@@ -28,33 +34,39 @@ class Orderbook:
 
 		logging.info("REMOVING ORDER: " + str(order_id))
 
+		# Look for order in our order list
 		if order_id in self.order_list:
 
+			# Get details
 			price = self.order_list[order_id][0]
 			amount = self.order_list[order_id][1]
 
 			if amount > 0:
-				logging.info("Subtracting buy from book at price = " + str(price))
+
+				# Handle buy orders
+				logging.info('Subtracting amount (' + str(amount) + ') of (' + str(self.buyOrders[price]) + ') from buy book at price (' + str(price) + ')')
 
 				# Look for order baked into orderbook
 				if price in self.buyOrders:
 					self.buyOrders[price] -= amount
 
+					logging.info("Remaining volume (" + str(self.buyOrders[price]) + ") at price (" + str(price) + ")")
+
 					# Delete this order level if its below 0
 					if self.buyOrders[price] <= 0:
-						logging.info("Removing price level " + str(price) + " from the buy book")
+						logging.info("Removing price level (" + str(price) + ") from the buy book")
 						del self.buyOrders[price]
-
 				else:
 					logging.error("Could not find order at price given by remove order")
 
 			else:
 
-				logging.info("Subtracting sell from book at price = " + str(price))
+				# Handle sell orders
+				logging.info('Subtracting amount (' + str(amount) + ') from sell book at price (' + str(self.sellOrders[price]) + ')')
 
 				# Look for order baked into orderbook
 				if price in self.sellOrders:
-					self.sellOrders[price] -= amount
+					self.sellOrders[price] -= abs(amount)
 
 					# Delete this order level if its below 0
 					if self.sellOrders[price] <= 0:
@@ -72,27 +84,44 @@ class Orderbook:
 
 	def add_order(self, order_id, price, amount):
 
+		# Bring volume into 8 decimal places
+		amount = amount.quantize(Decimal('.00000001'), rounding=ROUND_HALF_DOWN)
+
+		# Stats
+		self.volume_processed += abs(amount)
 		self.total_orders_processed += 1
+
+		logging.info('self.volume_processed = ' + str(self.volume_processed))
 
 		# Look for existing order with id
 		if order_id in self.order_list:
-			logging.info("Found already existing order")
+			logging.info("Found existing order with given id(" + str(order_id) + ")")
 			self.order_list[order_id] = [price, amount]
 		else:
+			# Add to order to order list
+			abs_amount = abs(amount)
 			self.order_list[order_id] = [price, amount]
 
 		if amount > 0:
 
 			logging.info("BUY ORDER: order_id = " + str(order_id) + ", price = " + str(price) + ", amount = " + str(amount))
-
 			self.total_buy_orders_processed += 1
 
 			# Buy orders
 			if price in self.buyOrders:
+
 				updatedAmount = self.buyOrders[price] + amount
+
+				logging.info('Price level (' + str(price) + ') found in orderbook, updating volume from (' + str(self.buyOrders[price]) + ') to (' + str(updatedAmount) + ')')
+
 				self.buyOrders[price] = updatedAmount
+
 			else:
+
+				logging.info('Price level (' + str(price) + ') NOT found in orderbook, adding volume of (' + str(amount) + ')')
+
 				self.buyOrders[price] = amount
+
 		else:
 
 			logging.info("SELL ORDER: order_id = " + str(order_id) + ", price = " + str(price) + ", amount = " + str(amount))
@@ -101,9 +130,17 @@ class Orderbook:
 
 			# Sell orders
 			if price in self.sellOrders:
+
 				updatedAmount = self.sellOrders[price] + abs(amount)
+
+				logging.info('Price level (' + str(price) + ') found in orderbook, updating volume from (' + str(self.sellOrders[price]) + ') to (' + str(updatedAmount) + ')')
+
 				self.sellOrders[price] = updatedAmount
+
 			else:
+
+				logging.info('Price level (' + str(price) + ') NOT found in orderbook, adding volume of (' + str(amount) + ')')
+
 				self.sellOrders[price] = abs(amount)
 
 		# Update best buys and sells
@@ -113,10 +150,7 @@ class Orderbook:
 			self.best_sell = self.sellOrders.keys()[0]
 			self.spread = self.best_sell - self.best_buy
 
-			logging.info(" - Spread = " + str(self.spread))
 			#self.match_orders()
-
-		logging.info("")
 
 	def match_orders(self):
 
@@ -176,28 +210,5 @@ class Orderbook:
 				del self.sellOrders[key]
 
 
-""""
-orderbook = Orderbook()
-
-# Buys
-orderbook.add_order(120.0, 1.0)
-
-# Sells
-orderbook.add_order(120.0, -1.0)
-
-logging.info("")
-logging.info(" - - Sell Orders - - ")
-
-for key in orderbook.sellOrders.islice(0, 5, reverse=True):
-	logging.info(str(key) + " - " +  str(orderbook.sellOrders[key]))
-
-logging.info(" - - Buy Orders - - ")
-
-for key in orderbook.buyOrders.islice(0, 5, reverse=True):
-	logging.info(str(key) + " - " +  str(orderbook.buyOrders[key]))
-
-logging.info(" - - - - - - - - - ")
-logging.info("Best Price = " + " - " +  str(orderbook.get_best_price()))
-"""
 
 

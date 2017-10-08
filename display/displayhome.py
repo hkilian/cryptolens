@@ -107,8 +107,6 @@ class HomeView(urwid.WidgetWrap):
 		info_data.append(['Orders Removed', orderbook.total_orders_removed])
 		info_data.append(['Orders Waiting', len(orderbook.order_list)])
 
-		print(" - - - - - -")
-
 		best_sell = 9999;
 		for order_id in orderbook.order_list.keys():
 			price = orderbook.order_list[order_id][0]
@@ -116,13 +114,41 @@ class HomeView(urwid.WidgetWrap):
 
 			if amount < 0 and price < best_sell:
 				best_sell = price
-
-			print(price)
-
 		info_data.append(['Best sell', best_sell])
 
-		print(" - - - - - -")
+		info_data.append(['-', '-'])
 
+		total_volume_actual = 0;
+		for order_id in orderbook.order_list.keys():
+			if orderbook.order_list[order_id][1] > 0:
+				total_volume_actual += orderbook.order_list[order_id][1]
+		info_data.append(['Total Volume Actual', total_volume_actual])
+
+		total_buy_volume = 0;
+		for order in orderbook.buyOrders.keys():
+			total_buy_volume += orderbook.buyOrders[order]
+		info_data.append(['Total Buy Volume', total_buy_volume])
+
+		info_data.append(['Buy Diff', total_buy_volume - total_volume_actual])
+
+		info_data.append(['-', '-'])
+
+		total_sell_volume_actual = 0;
+		for order_id in orderbook.order_list.keys():
+			if orderbook.order_list[order_id][1] < 0:
+				total_sell_volume_actual += abs(orderbook.order_list[order_id][1])
+		info_data.append(['Total Sell Volume Actual', total_sell_volume_actual])
+
+		total_sell_volume = 0;
+		for order in orderbook.sellOrders.keys():
+			total_sell_volume += orderbook.sellOrders[order]
+		info_data.append(['Total Sell Volume', total_sell_volume])
+
+		info_data.append(['Sell Diff', total_sell_volume - total_sell_volume_actual])
+
+		if total_sell_volume - total_sell_volume_actual > 0.0001:
+			#sys.exit()
+			pass
 
 		self.stats_table.update_data(info_data)
 
@@ -145,7 +171,7 @@ class HomeView(urwid.WidgetWrap):
 	def prepare_stats_pane(self):
 
 		columnList = ['Stats']
-		self.stats_table = Table(2, 8, column_names=columnList)
+		self.stats_table = Table(2, 15, column_names=columnList)
 		self.stats_table.create_table()
 
 	def prepare_order_book(self):
