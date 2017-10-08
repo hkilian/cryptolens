@@ -4,10 +4,15 @@ import requests
 import websockets
 import asyncio
 import time
-from orderbook import *
+import itertools
+import logging
+from .orderbook import *
 from sortedcontainers import SortedDict
 
-class Processor:
+logging.basicConfig(filename='example.log',level=logging.INFO)
+#logging.getLogger().setLevel(logging.INFO)
+
+class BitfinexProcessor:
 
 	def __init__(self):
 
@@ -23,6 +28,60 @@ class Processor:
 		#asyncio.Task(self.get_price())
 		asyncio.Task(self.get_orders())
 
+	def process_full_order_book(self):
+
+		logging.info('Processing full order book from bitfinex')
+
+		url = "https://api.bitfinex.com/v1/book/BTCUSD"
+		response = requests.get(url)
+		bookdata = response.json()
+
+		bids = bookdata["bids"]
+		asks = bookdata["asks"]
+
+		for bid in bids:
+			
+			try:
+			    price = float(bid["price"])
+			except ValueError:
+			    logging.info("Price is invalid")
+			    continue
+
+			# Ignore scientifically formatted floats(extremely low price buy orders)
+			if "e" in bid["price"]:
+				continue
+
+			amount = float(bid["amount"])
+			timestamp = float(bid["timestamp"])
+
+			logging.info("BID")
+			logging.info(bid)
+			logging.info("price = " + str(price))
+			logging.info("amount = " + str(amount))
+
+			self.orderbook.add_order(0, price, amount)
+
+		for ask in asks:
+
+			try:
+			    price = float(ask["price"])
+			except ValueError:
+			    logging.info("Price is invalid")
+
+			if "e" in ask["price"]:
+				continue
+
+			amount = float(ask["amount"])
+			amount = -amount
+			timestamp = float(ask["timestamp"])
+
+			logging.info("ASK")
+			logging.info(ask)
+			logging.info("price = " + str(price))
+			logging.info("amount = " + str(amount))
+
+			self.orderbook.add_order(price, amount)
+
 	@asyncio.coroutine
 	def get_price(self):
 		while True:
@@ -33,81 +92,109 @@ class Processor:
 
 	@asyncio.coroutine
 	def get_orders(self):
+
 		websocket = yield from websockets.connect('wss://api.bitfinex.com/ws/2')
-		#sendData = json.dumps({ "event":"subscribe", "channel": "book", "pair": "BTCUSD", "prec": "p0", "freq": "f0", "len": "25"})
-		sendData = json.dumps({ "event":"subscribe", "channel": "trades", "pair": "BTCUSD"})
+		sendData = json.dumps({ "event":"subscribe", "channel": "book", "pair": "tBTCUSD", "prec": "R0", "len":"100"})
+
+		eventPayloadReceived = False
+		subscribedPayloadReceived = False
+		snapshotPayloadReceived = False
+
+		# Pull in the complete orderbook
+		#self.process_full_order_book()
+
 		try:
 			yield from websocket.send(sendData)
-			print("Sending request over wss")
+			logging.info("Sending request over wss")
 
 			while True:
 
 				result = yield from websocket.recv()
+				result = json.loads(result)
 
-				try:
+				logging.info(result)
 
-					result = json.loads(result)
-					code = result[1]
+				# Look for first event payload
+				if len(result) == 2 and eventPayloadReceived == False:
+					eventPayloadReceived = True
+					logging.info("Got event payload")
+					continue
 
-					#print(result)
+				# Look for subscribed payload
+				if len(result) == 8 and subscribedPayloadReceived == False:
+					subscribedPayloadReceived = True
+					logging.info("Got subscribed")
+					continue
 
-					if code == "te" or code == "tu":
+				# Look for subscribed payload
+				if len(result) == 2 and snapshotPayloadReceived == False:
+					snapshotPayloadReceived = True
+					logging.info("Got snapshot")
+					self.process_snapshot(result)
+					continue
 
-						data = result[2]
-						timestamp = data[1]
-						price = data[3]
-						amount = data[2]
+				# Look for heatbeat
+				if result[1] == 'hb':
+					logging.info("Got heartbeat")
+					continue
 
-						ourTimestamp = int(time.time() * 1000)
-						timeSinceTransaction = (ourTimestamp - timestamp) / 100.0
+				data = result[1]
+				timestamp = data[0]
+				price = data[1]
+				amount = data[2]
+				order_id = int(data[0])
 
-						#print("ourTimestamp = " + str(ourTimestamp) + " - trade time = " + str(timestamp))
-						timestampOut = "(transTime = " + str(timestamp) + ", outTime = " + str(ourTimestamp) + ")"
-						#print("Price = " + str(price) + " (" + str(timeSinceTransaction) + "ms) ")
+				if price == 0:
+					self.orderbook.remove_order(order_id)
+					continue
 
-						self.totalLatency += timeSinceTransaction
-						self.transactionsProcessed += 1
-						self.averageTransactionTime = self.totalLatency / self.transactionsProcessed
+				ourTimestamp = int(time.time() * 1000)
+				timeSinceTransaction = (ourTimestamp - timestamp) / 100.0
 
-						os.system('clear')
+				#logging.info("ourTimestamp = " + str(ourTimestamp) + " - trade time = " + str(timestamp))
+				timestampOut = "(transTime = " + str(timestamp) + ", outTime = " + str(ourTimestamp) + ")"
+				#logging.info("Price = " + str(price) + " (" + str(timeSinceTransaction) + "ms) ")
 
-						self.orderbook.add_order(price, amount)
+				self.totalLatency += timeSinceTransaction
+				self.transactionsProcessed += 1
+				self.averageTransactionTime = self.totalLatency / self.transactionsProcessed
 
-						print(result)
+				#os.system('clear')
 
-						print("Last order price: " + str(price))
-						print("Last order amount: " + str(amount))
-						print("Total orders processed: " + str(self.transactionsProcessed))
-						print("Orderbook size: " + str(len(self.orderbook.buyOrders)))
+				# Disable logging.info
+				sys.stdout = open(os.devnull, 'w')
 
-						print("")
-						print(" - - Sell Orders - - ")
+				# Place order
+				self.orderbook.add_order(order_id, price, amount)
 
-						for key in self.orderbook.sellOrders.islice(0, 5, reverse=True):
-							print(str(key) + " - " +  str(self.orderbook.sellOrders[key]))
+				# Enable logging.info
+				sys.stdout = sys.__stdout__
 
-						print(" - - Buy Orders - - ")
-
-						for key in self.orderbook.buyOrders.islice(0, 5, reverse=True):
-							print(str(key) + " - " +  str(self.orderbook.buyOrders[key]))
-
-						print(" - - - - - - - - - ")
-						print("Best Price = " + " - " +  str(self.orderbook.get_best_price()))
-
-						#print("Transactions: " + str(self.transactionsProcessed))
-						#print("Avg latancy: " + str(self.averageTransactionTime) + " ms")
-
-				except:
-					pass
+				logging.info(result)
 
 		finally:
 			yield from websocket.close()
 
+	def process_snapshot(self, result):
+
+		data = result[1]
+
+		logging.info("LOOK HERE")
+		logging.info(data)
+
+		for order in data:
+			order_id = order[0]
+			price = order[1]
+			amount = order[2]
+			self.orderbook.add_order(order_id, price, amount)
+				
+
+"""
 # Runs until processor signal exit
 async def main():
-	processor = Processor()
+	processor = BitfinexProcessor()
 
-	print("Running now...")
+	logging.info("Running now...")
 
 	while processor.close == False:
 		await asyncio.sleep(1)
@@ -116,5 +203,5 @@ async def main():
 loop = asyncio.get_event_loop()
 loop.run_until_complete(main())
 loop.close()
-
+"""
 

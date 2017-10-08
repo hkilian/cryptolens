@@ -33,11 +33,6 @@ palette = [
 # Main loop
 loop = asyncio.get_event_loop()
 
-display = DisplayHome()
-display.ShowLoading("Loading latest market data to database...")
-display.ShowTopCoins()
-display.PrepareBody()
-
 header = Header()
 footer = Footer()
 
@@ -47,13 +42,6 @@ controller = HomeController()
 # Create the view
 view = urwid.Frame(header=header, body=controller.view, footer=footer)
 view = urwid.Padding(view, left=2, right=2)
-
-# Run initdb if missing db
-if not Asset.table_exists():
-	initdb()
-	display.Update("Database Updated")
-else:
-	display.Update("Database already updated")
 
 @asyncio.coroutine
 def slow_operation():
@@ -68,10 +56,13 @@ def slow_operation():
 #asyncio.Task(slow_operation())
 
 def rPressed():
+	True
+	"""
 	display = DisplayMarket()
 	display.ShowOrderBook()
 	display.PrepareBody()
 	view.original_widget.body = display.body
+	"""
 	
 def input_filter(keys, raw):
 	if 'q' in keys or 'Q' in keys:

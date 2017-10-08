@@ -20,7 +20,7 @@ class DisplayMarket:
 		self.mainPileList.append(filler)
 
 	def Update(self, text):
-		self.text.set_text(text)
+		True
 
 	def ShowOrderBook(self):
 
