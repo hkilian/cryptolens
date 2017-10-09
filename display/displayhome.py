@@ -87,7 +87,7 @@ class HomeView(urwid.WidgetWrap):
 		sell_data = []
 		for key in orderbook.sellOrders.islice(0, 18, reverse=True):
 			amount = "{:.10f}".format(orderbook.sellOrders[key])
-			sell_data.append([key, amount])
+			sell_data.append([key, amount, 0])
 
 		self.sellTable.update_data(sell_data)
 
@@ -95,7 +95,7 @@ class HomeView(urwid.WidgetWrap):
 		buy_data = []
 		for key in itertools.islice(reversed(orderbook.buyOrders), 0, 18):
 			amount = "{:.10f}".format(orderbook.buyOrders[key])
-			buy_data.append([key, amount])
+			buy_data.append([key, amount, 0])
 
 		self.buyTable.update_data(buy_data)
 
@@ -178,16 +178,16 @@ class HomeView(urwid.WidgetWrap):
 
 	def prepare_order_book(self):
 
-		column_list = [urwid.Text(('table header', "Price")), urwid.Text(('table header', "Volume"))]
+		column_list = [urwid.Text(('table header', "Price")), urwid.Text(('table header', "Volume")), urwid.Text(('table header', "Orders"))]
 		column_headers = urwid.Columns(column_list)
 		column_headers = urwid.Filler(column_headers, valign='middle', top=1, bottom=1)
 
-		self.sellTable = Table(2, 30, fillbottom=True)
+		self.sellTable = Table(3, 30, fillbottom=True)
 		self.sellTable.create_table()
 
 		self.sellTable._w.set_focus(self.sellTable.row_count - 1)
 
-		self.buyTable = Table(2, 30)
+		self.buyTable = Table(3, 30)
 		self.buyTable.create_table()
 
 		best_price_widget = urwid.Padding(self.best_price, align="center", width='pack')
