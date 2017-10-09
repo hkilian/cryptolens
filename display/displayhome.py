@@ -5,7 +5,7 @@ import websockets
 import json
 from .displaycommon import *
 from exchanges.bitfinex import Bitfinex
-from daemon.orderbook import Orderbook
+from core.orderbook import Orderbook
 from daemon.processor import BitfinexProcessor
 
 class HomeModel:
@@ -19,6 +19,9 @@ class HomeModel:
 
 	def get_orderbook(self):
 		return self.bitfinex_processor.orderbook
+
+	def get_market_info(self):
+		return self.bitfinex_processor.market_info
 
 	@asyncio.coroutine
 	def get_price(self):
@@ -70,6 +73,7 @@ class HomeView(urwid.WidgetWrap):
 		self.prepare_order_book()
 
 		# Prepare left pane
+		self.prepare_market_info_pane()
 		self.prepare_stats_pane()
 		self.prepare_left_pane()
 
@@ -79,6 +83,7 @@ class HomeView(urwid.WidgetWrap):
 
 		# Get the orderbook
 		orderbook = self.controller.get_orderbook()
+		market_info = self.controller.market_info
 
 		# Get the best price
 		self.best_price.set_text(str(orderbook.best_sell))
@@ -105,54 +110,15 @@ class HomeView(urwid.WidgetWrap):
 		info_data.append(['Buy Orders Received', orderbook.total_buy_orders_processed])
 		info_data.append(['Sell Orders Received', orderbook.total_sell_orders_processed])
 		info_data.append(['Orders Removed', orderbook.total_orders_removed])
-		info_data.append(['Orders Waiting', len(orderbook.order_list)])
-
-		best_sell = 9999;
-		for order_id in orderbook.order_list.keys():
-			price = orderbook.order_list[order_id][0]
-			amount = orderbook.order_list[order_id][1]
-
-			if amount < 0 and price < best_sell:
-				best_sell = price
-		info_data.append(['Best sell', best_sell])
-
-		info_data.append(['Order volume change', orderbook.order_change_volume])
-
-		info_data.append(['-', '-'])
-
-		total_volume_actual = 0;
-		for order_id in orderbook.order_list.keys():
-			if orderbook.order_list[order_id][1] > 0:
-				total_volume_actual += orderbook.order_list[order_id][1]
-		info_data.append(['Total Volume Actual', total_volume_actual])
-
-		total_buy_volume = 0;
-		for order in orderbook.buyOrders.keys():
-			total_buy_volume += orderbook.buyOrders[order]
-		info_data.append(['Total Buy Volume', total_buy_volume])
-
-		info_data.append(['Buy Diff', total_buy_volume - total_volume_actual])
-
-		info_data.append(['-', '-'])
-
-		total_sell_volume_actual = 0;
-		for order_id in orderbook.order_list.keys():
-			if orderbook.order_list[order_id][1] < 0:
-				total_sell_volume_actual += abs(orderbook.order_list[order_id][1])
-		info_data.append(['Total Sell Volume Actual', total_sell_volume_actual])
-
-		total_sell_volume = 0;
-		for order in orderbook.sellOrders.keys():
-			total_sell_volume += orderbook.sellOrders[order]
-		info_data.append(['Total Sell Volume', total_sell_volume])
-
-		info_data.append(['Sell Diff', total_sell_volume - total_sell_volume_actual])
-
-		if total_sell_volume - total_sell_volume_actual > 0.0001:
-			#sys.exit()
-			pass
-
+		info_data.append(['Orders In System', len(orderbook.order_list)])
+		info_data.append(['Volume Of Modified Orders', orderbook.order_change_volume])
 		self.stats_table.update_data(info_data)
+
+		# Update market pane
+		market_data = []
+		market_data.append(['Total volume', market_info['volume']])
+
+		self.market_info_table.update_data(market_data)
 
 	def main_window(self):
 		price = str(self.controller.get_price_data())
@@ -165,29 +131,32 @@ class HomeView(urwid.WidgetWrap):
 		return body
 
 	def prepare_left_pane(self):
+		self.leftColumn = urwid.Pile([(8, self.market_info_table), self.stats_table])
 
-		best_price = urwid.Text("empty")
+	def prepare_market_info_pane(self):
 
-		self.leftColumn = urwid.Pile([self.stats_table])
+		columnList = ['Market Info']
+		self.market_info_table = Table(2, 6, column_names=columnList)
+		self.market_info_table.create_table()
 
 	def prepare_stats_pane(self):
 
 		columnList = ['Stats']
-		self.stats_table = Table(2, 15, column_names=columnList)
+		self.stats_table = Table(2, 6, column_names=columnList)
 		self.stats_table.create_table()
 
 	def prepare_order_book(self):
 
-		column_list = [urwid.Text(('table header', "Price")), urwid.Text(('table header', "Volume")), urwid.Text(('table header', "Orders"))]
+		column_list = [(12, urwid.Text(('table header', "Price"))), urwid.Text(('table header', "Volume")), (6, urwid.Text(('table header', "Orders")))]
 		column_headers = urwid.Columns(column_list)
 		column_headers = urwid.Filler(column_headers, valign='middle', top=1, bottom=1)
 
-		self.sellTable = Table(3, 30, fillbottom=True)
+		self.sellTable = Table(3, 30, fillbottom=True, column_widths=[12,0,6])
 		self.sellTable.create_table()
 
 		self.sellTable._w.set_focus(self.sellTable.row_count - 1)
 
-		self.buyTable = Table(3, 30)
+		self.buyTable = Table(3, 30, column_widths=[12,0,6])
 		self.buyTable.create_table()
 
 		best_price_widget = urwid.Padding(self.best_price, align="center", width='pack')
@@ -213,53 +182,7 @@ class HomeController:
 	def get_orderbook(self):
 		return self.model.get_orderbook();
 
-	
-
-
-
-
-
-class DisplayHome:
-
-	def __init__(self):
-		self.mainPileList = []
-
-		self.topCoins = urwid.Pile([])
-
-	def ShowLoading(self, loadingText):
-
-		self.text = urwid.Text(loadingText)
-		padding = urwid.Padding(self.text, align='center', width='pack')
-		filler = urwid.Filler(padding, valign='middle')
-		self.mainPileList.append(filler)
-
-	def Update(self, text):
-		self.text.set_text(text)
-
-	def ShowTopCoins(self):
-
-		colList = [(3, urwid.Text(('table header', str("-")))),
-									 (urwid.Text(('table header', str("Symbol")))),
-									 (urwid.Text(('table header', str("Price")))),
-									 (urwid.Text(('table header', str("Market Cap")))),
-									 (urwid.Text(('table header', str("Volume")))),
-									 (urwid.Text(('table header', str("24hr Change")))),
-									 (urwid.Text(('table header', str("Last Update"))))]
-
-		table = Table("Top coins by marketcap (Bitfinex):", colList)
-		table.create_table()
-		self.topCoins = table
-
-	def PrepareBody(self):
-
-		# Sort left and right columns
-		mainList = [self.topCoins]
-
-		self.body = urwid.Pile(mainList)
-		self.body = urwid.Padding(self.body, left=2, right=2)
-		self.body = urwid.LineBox(self.body)
-
-
-
+	def get_market_info(self):
+		return self.model.get_market_info();
 
 

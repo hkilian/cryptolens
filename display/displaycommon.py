@@ -9,10 +9,13 @@ class Header(urwid.WidgetWrap):
 		self.title = "Cryptolens"
 
 		# Header
-		self.header = urwid.Text(u"\n" + self.title + " (q to exit)\n")
-		self.header = urwid.AttrWrap(self.header, 'titlebar')
+		self.header_left = urwid.Text(u"\n" + self.title + "\n")
+		self.header_left = urwid.AttrWrap(self.header_left, 'titlebar')
 
-		columns = urwid.Columns([self.header])
+		self.header_right = urwid.Text(u"\nBitcoin USD/BTC (Bitfinex)", align='right')
+		self.header_right = urwid.AttrWrap(self.header_right, 'titlebar')
+
+		columns = urwid.Columns([self.header_left, self.header_right])
 
 		self.__super.__init__(urwid.AttrWrap(columns, 'header'))
 
@@ -21,7 +24,7 @@ class Footer(urwid.WidgetWrap):
 	def __init__(self):
 
 		# Footer
-		self.reloadText = urwid.Text(u" Press r to pull in data \n")
+		self.reloadText = urwid.Text(u" Press q to exit \n")
 		self.reloadText = urwid.AttrWrap(self.reloadText, 'titlebar')
 
 		columns = urwid.Columns([self.reloadText])
@@ -30,7 +33,7 @@ class Footer(urwid.WidgetWrap):
 
 class Table(urwid.WidgetWrap):
 
-	def __init__(self, columns, rows, column_names=[], fillbottom=False):
+	def __init__(self, columns, rows, column_names=[], column_widths=[], fillbottom=False):
 
 		# Create columns based on the passed in column names
 		self.col_list = []
@@ -44,11 +47,17 @@ class Table(urwid.WidgetWrap):
 		# Total rows in table
 		self.row_count = rows
 
+		# Widths for each column
+		self.column_widths = column_widths
+
 		# If column names have been provided
 		if len(column_names) > 0:
+			j = 0
 			for name in column_names:
-				self.head_row.append(urwid.Text(('table header', str(name))))
-				pass
+				if self.column_widths and self.column_widths[j] != 0:
+					self.head_row.append((self.column_widths[j], urwid.Text(('table header', str(name)))))
+				else:
+					self.head_row.append(urwid.Text(('table header', str(name))))
 
 		self.columnCount = columns
 		self.listwalker = urwid.SimpleListWalker([])
@@ -76,7 +85,10 @@ class Table(urwid.WidgetWrap):
 
 			colRowList = []
 			for j in range(len(data[0])):
-				colRowList.append(urwid.Text(str(data[i][j])))
+				if self.column_widths and self.column_widths[j] != 0:
+					colRowList.append((self.column_widths[j], urwid.Text(str(data[i][j]))))
+				else:
+					colRowList.append(urwid.Text(str(data[i][j])))
 
 			row = urwid.Columns(colRowList)
 

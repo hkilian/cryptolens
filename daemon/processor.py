@@ -9,10 +9,10 @@ import logging
 from sortedcontainers import SortedDict
 
 import config
-from .orderbook import *
+from core.orderbook import *
 
-logging.basicConfig(filename='example.log',level=logging.INFO)
-#logging.getLogger().setLevel(logging.INFO)
+logging.basicConfig(filename='output.log',level=logging.INFO)
+logging.getLogger().setLevel(logging.INFO)
 
 class BitfinexProcessor:
 
@@ -24,9 +24,16 @@ class BitfinexProcessor:
 		# Orderbook
 		self.orderbook = Orderbook()
 
-		# True if we are connected to the websocket
+		# Flag if we are connected or in process of connecting to websocket
 		self.connected = False
 		self.connecting = False
+
+		# ID numbers for channels
+		self.channel_id_ticker = -1
+		self.channel_id_raw_books = -1
+
+		# Market info
+		market_info = {}
 
 		# Connect to websocket and subscribe to channels
 		asyncio.Task(self.connect_and_subscribe())
@@ -34,14 +41,70 @@ class BitfinexProcessor:
 	@asyncio.coroutine
 	def connect_and_subscribe(self):
 
-		logging.info("Connecting and subscribing")
+		logging.info("Connecting to websocket and subscribing...")
 
 		# Connect to websocket
 		yield from asyncio.Task(self.connect_to_websocket())
 
-		# Subscribe to raw books channel
-		asyncio.Task(self.get_orders())
+		# Send subscriptions
+		subscribe_ticker = json.dumps({ "event": "subscribe", "channel": "ticker","symbol": "tBTCUSD" })
+		subscribe_raw_books = json.dumps({ "event":"subscribe", "channel": "book", "pair": "tBTCUSD", "prec": "R0", "len":"100"})
 
+		try:
+
+			yield from self.websocket.send(subscribe_ticker)
+			#yield from self.websocket.send(subscribe_raw_books)
+
+			logging.info("Sending channel subscribe requests...")
+
+			while True:
+
+				result = yield from self.websocket.recv()
+				result = json.loads(result)
+
+				logging.info(result)
+
+				# Look for subscriptions events
+				if self.channel_id_ticker == -1:
+					if 'event' in result and result['event'] == 'subscribed' and result['channel'] == 'ticker':
+						self.channel_id_ticker = result['chanId']
+						logging.info('Subscribed to ticker channel, id (' + str(self.channel_id_ticker) + ')')
+						ticker_subscribed = True
+						continue
+
+				if self.channel_id_raw_books == -1:
+					if 'event' in result and result['event'] == 'subscribed' and result['channel'] == 'book':
+						self.channel_id_raw_books = result['chanId']
+						logging.info('Subscribed to raw books channel, id (' + str(self.channel_id_raw_books) + ')')
+						raw_books_subscribed = True
+						continue
+
+				# Direct data in to the right handler
+				channel_id = result[0]
+				logging.info('Got data for channel with id (' + str(channel_id) + ')')
+
+				if self.channel_id_ticker == channel_id:
+					self.handle_ticker_data(result)
+				elif self.channel_id_raw_books == channel_id:
+					#self.handle_raw_books(result)
+					pass
+
+				#logging.info(result)
+
+		finally:
+			logging.info("Done")
+			pass
+
+
+		# Subscribe to raw books channel
+		asyncio.Task(self.get_orderbook())
+
+		# Subscribe to ticker channel
+		#asyncio.Task(self.get_ticker_data())
+
+		# Send subscription events
+		subscribe_ticker = json.dumps({ "event":"subscribe", "channel": "book", "pair": "tBTCUSD", "prec": "R0", "len":"100"})
+		self.websocket.send(subscribe_ticker)
 
 	def process_full_order_book(self):
 
@@ -98,14 +161,6 @@ class BitfinexProcessor:
 			self.orderbook.add_order(price, amount)
 
 	@asyncio.coroutine
-	def get_price(self):
-		while True:
-			bitfinex = Bitfinex()
-			data = bitfinex.PullData()
-			self.latest_price = data['price']
-			yield from asyncio.sleep(1)
-
-	@asyncio.coroutine
 	def connect_to_websocket(self):
 
 		# Flag that we are attempting connection
@@ -118,6 +173,7 @@ class BitfinexProcessor:
 		# Should look like this:
 		# {"event":"info","version":2}
 		try:
+
 			logging.info("Attempting connection to websocket...")
 
 			received_event_payload = False
@@ -126,132 +182,106 @@ class BitfinexProcessor:
 				result = yield from self.websocket.recv()
 				result = json.loads(result)
 
-				# Look for event payload
-				if 'event' in result:
-
-					version = result['version']
-
-					if version != self.expected_ws2_version:
-						logging.error('Unexpected version number ' + str(version) + ' received from bitfinex, expected version ' + str(self.expected_ws2_version))
-						self.connected = False
-						self.connecting = False
-						break
-
-					received_event_payload = True
-					logging.info("Received event payload: " + str(result))
-
-					self.connecting = False
-					self.connected = True
-
-					continue
-
-			if self.connected:
-				logging.info("Connection successfully established!")
-			else:
-				logging.critical("Problem connecting to bitfinex, look at logs.")
+				# If event payload not received then do nothing
+				if received_event_payload == False:
+					if self.handle_event_payload(result):
+						received_event_payload = True
+						logging.info("Connection successfully established!")
+						return True
+					else:
+						logging.critical("Problem connecting to bitfinex, look at logs.")
+						return False
 
 		finally:
-			self.connected = False
+			pass
 
-	@asyncio.coroutine
-	def get_orders(self):
+	def handle_event_payload(self, data):
 
-		# Wait for connection to establish
-		if self.connected == False and self.connecting == True:
+		# Look for event payload
+		if 'event' in data:
 
-			logging.info("Waiting for websocket to connect before subscribing to raw books channel...")
+			version = data['version']
+			if version != self.expected_ws2_version:
+				logging.error('Unexpected version number ' + str(version) + ' received from bitfinex, expected version ' + str(self.expected_ws2_version))
+				self.connected = False
+				self.connecting = False
+				return False
 
-			while self.connected == False:
+			logging.info("Received event payload: " + str(data))
 
-				asyncio.sleep(1)
+			self.connecting = False
+			self.connected = True
 
-				if self.connecting == False and self.connected == False:
-					logging.error("Could not subscribe to order channel as no websocket is connected!")
-		else:
+			return True
 
-			logging.info("Websocket connection found, subscribing to channel...")
-				
+	def handle_ticker_data(self, data):
+			
+		logging.info('Handling ticker data...')
+		print(data)
 
-		# Subscribe to most raw books channel
-		subscribe_raw = json.dumps({ "event":"subscribe", "channel": "book", "pair": "tBTCUSD", "prec": "R0", "len":"100"})
+		if len(data[1]) > 9:
+			ticker_data = data[1]
+			market_info['bid'] = ticker_data[0]
+			market_info['bid_size = ticker_data[1]
+			market_info['ask = ticker_data[2]
+			market_info['ask_size = ticker_data[3]
+			market_info['daily_change = ticker_data[4]
+			market_info['daily_perc_change = ticker_data[5]
+			market_info['last_price = ticker_data[6]
+			market_info['volume = ticker_data[7]
+			market_info['high = ticker_data[8]
+			market_info['low = ticker_data[9]
 
-		# Flag waiting for websocket responses
-		got_subscribed_payload = False
+	def handle_raw_books(self, data):
+			
+		# Flags used on waiting for websocket responses
 		got_snapshot_payload = False
+		result = data
 
-		try:
+		logging.info(result)
 
-			yield from self.websocket.send(subscribe_raw)
+		# Look for snapshot payload
+		if len(result) == 2 and len(result[1]) >= 20:
+			logging.info("Received snapshot data!")
+			self.process_snapshot(result)
+			return
 
-			logging.info("Sending channel subscribe request...")
+		# Look for heatbeat
+		if result[1] == 'hb':
+			logging.info("Got heartbeat")
+			return
 
-			while True:
+		data = result[1]
+		timestamp = data[0]
+		price = data[1]
+		amount = Decimal(data[2])
+		order_id = int(data[0])
 
-				result = yield from self.websocket.recv()
-				result = json.loads(result)
+		if price == 0:
+			self.orderbook.remove_order(order_id)
+			return
 
-				# Look for subscribed payload
-				if got_subscribed_payload == False and 'event' in result and result['event'] == 'subscribed':
-					got_subscribed_payload = True
-					logging.info("Received subscribe event!")
-					continue
+		# Meassure time since transaction took place
+		ourTimestamp = int(time.time() * 1000)
+		timeSinceTransaction = (ourTimestamp - timestamp) / 100.0
+		#logging.info("ourTimestamp = " + str(ourTimestamp) + " - trade time = " + str(timestamp))
+		timestampOut = "(transTime = " + str(timestamp) + ", outTime = " + str(ourTimestamp) + ")"
+		#logging.info("Price = " + str(price) + " (" + str(timeSinceTransaction) + "ms) "
 
-				# Do not proceed if not subscribed
-				if got_subscribed_payload == False:
-					continue
+		# Disable logging.info
+		sys.stdout = open(os.devnull, 'w')
 
-				# Look for snapshot payload
-				if got_snapshot_payload == False and len(result) == 2:
-					got_snapshot_payload = True
-					logging.info("Got snapshot")
-					self.process_snapshot(result)
-					continue
+		# Place order
+		self.orderbook.add_order(order_id, price, amount)
 
-				# Do not proceed without snapshot
-				if got_snapshot_payload == False:
-					continue
-
-				# Look for heatbeat
-				if result[1] == 'hb':
-					logging.info("Got heartbeat")
-					continue
-
-				data = result[1]
-				timestamp = data[0]
-				price = data[1]
-				amount = Decimal(data[2])
-				order_id = int(data[0])
-
-				if price == 0:
-					self.orderbook.remove_order(order_id)
-					continue
-
-				ourTimestamp = int(time.time() * 1000)
-				timeSinceTransaction = (ourTimestamp - timestamp) / 100.0
-
-				#logging.info("ourTimestamp = " + str(ourTimestamp) + " - trade time = " + str(timestamp))
-				timestampOut = "(transTime = " + str(timestamp) + ", outTime = " + str(ourTimestamp) + ")"
-				#logging.info("Price = " + str(price) + " (" + str(timeSinceTransaction) + "ms) "
-
-				# Disable logging.info
-				sys.stdout = open(os.devnull, 'w')
-
-				# Place order
-				self.orderbook.add_order(order_id, price, amount)
-
-				# Enable logging.info
-				sys.stdout = sys.__stdout__
-
-		finally:
-			yield from self.websocket.close()
+		# Enable logging.info
+		sys.stdout = sys.__stdout__
 
 	def process_snapshot(self, result):
 
 		btotal_volume = 0;
 		for order in self.orderbook.buyOrders.keys():
 			btotal_volume += self.orderbook.buyOrders[order]
-
-		logging.info("Total volume before (" + str(btotal_volume) + ")")
 
 		data = result[1]
 

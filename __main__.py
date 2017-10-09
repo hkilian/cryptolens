@@ -3,13 +3,6 @@ import json
 import urwid
 import asyncio
 from random import randint
-
-# For testing, remove db
-import os
-if os.path.exists('test.db'):
-	#os.remove('test.db')
-	True
-
 from display.displaycommon import *
 from display.displayhome import *
 from display.displaymarket import DisplayMarket
@@ -33,43 +26,22 @@ palette = [
 # Main loop
 loop = asyncio.get_event_loop()
 
+# Get the header and footer widgets
 header = Header()
 footer = Footer()
 
-# MVC test
+# MVC
 controller = HomeController()
 
 # Create the view
 view = urwid.Frame(header=header, body=controller.view, footer=footer)
 view = urwid.Padding(view, left=2, right=2)
 
-@asyncio.coroutine
-def slow_operation():
-	while True:
-		bitfinex = Bitfinex()
-		data = bitfinex.PullData()
-
-		view.original_widget.body = urwid.Filler(urwid.Text(str(data['price'])))
-
-		yield from asyncio.sleep(1)
-
-#asyncio.Task(slow_operation())
-
-def rPressed():
-	True
-	"""
-	display = DisplayMarket()
-	display.ShowOrderBook()
-	display.PrepareBody()
-	view.original_widget.body = display.body
-	"""
-	
+# Handles input
 def input_filter(keys, raw):
 	if 'q' in keys or 'Q' in keys:
-			raise urwid.ExitMainLoop
+		raise urwid.ExitMainLoop
 
-	if 'r' in keys or 'R' in keys:
-		rPressed()
 
 # Main urwid loop
 urwid_loop = urwid.MainLoop(view, palette,
@@ -77,6 +49,5 @@ urwid_loop = urwid.MainLoop(view, palette,
  						event_loop=urwid.AsyncioEventLoop(loop=loop))
 
 controller.set_loop(urwid_loop)
-
 urwid_loop.run()
 

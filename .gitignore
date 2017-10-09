@@ -1,4 +1,7 @@
 
+*.log
+misc
+
 bin
 include
 lib
@@ -12,8 +15,6 @@ pip-selfcheck.json
 .Trashes
 ehthumbs.db
 Thumbs.db
-*.log
-misc
 __pycache__
 
 
