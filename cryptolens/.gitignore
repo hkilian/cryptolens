@@ -8,6 +8,7 @@ lib
 pip-selfcheck.json
 .Python
 *.pyc
+.pypirc
 
 .DS_Store
 .DS_Store?
