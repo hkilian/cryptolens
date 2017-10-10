@@ -33,7 +33,17 @@ class BitfinexProcessor:
 		self.channel_id_raw_books = -1
 
 		# Market info
-		market_info = {}
+		self.market_info = {}
+		self.market_info['bid'] = 0
+		self.market_info['bid_size'] = 0
+		self.market_info['ask'] = 0
+		self.market_info['ask_size']= 0
+		self.market_info['daily_change'] = 0
+		self.market_info['daily_perc_change'] = 0
+		self.market_info['last_price'] = 0
+		self.market_info['volume'] = 0
+		self.market_info['high'] = 0
+		self.market_info['low'] = 0
 
 		# Connect to websocket and subscribe to channels
 		asyncio.Task(self.connect_and_subscribe())
@@ -53,7 +63,7 @@ class BitfinexProcessor:
 		try:
 
 			yield from self.websocket.send(subscribe_ticker)
-			#yield from self.websocket.send(subscribe_raw_books)
+			yield from self.websocket.send(subscribe_raw_books)
 
 			logging.info("Sending channel subscribe requests...")
 
@@ -86,7 +96,7 @@ class BitfinexProcessor:
 				if self.channel_id_ticker == channel_id:
 					self.handle_ticker_data(result)
 				elif self.channel_id_raw_books == channel_id:
-					#self.handle_raw_books(result)
+					self.handle_raw_books(result)
 					pass
 
 				#logging.info(result)
@@ -217,20 +227,19 @@ class BitfinexProcessor:
 	def handle_ticker_data(self, data):
 			
 		logging.info('Handling ticker data...')
-		print(data)
 
 		if len(data[1]) > 9:
 			ticker_data = data[1]
-			market_info['bid'] = ticker_data[0]
-			market_info['bid_size = ticker_data[1]
-			market_info['ask = ticker_data[2]
-			market_info['ask_size = ticker_data[3]
-			market_info['daily_change = ticker_data[4]
-			market_info['daily_perc_change = ticker_data[5]
-			market_info['last_price = ticker_data[6]
-			market_info['volume = ticker_data[7]
-			market_info['high = ticker_data[8]
-			market_info['low = ticker_data[9]
+			self.market_info['bid'] = ticker_data[0]
+			self.market_info['bid_size'] = ticker_data[1]
+			self.market_info['ask'] = ticker_data[2]
+			self.market_info['ask_size']= ticker_data[3]
+			self.market_info['daily_change'] = ticker_data[4]
+			self.market_info['daily_perc_change'] = ticker_data[5]
+			self.market_info['last_price'] = ticker_data[6]
+			self.market_info['volume'] = ticker_data[7]
+			self.market_info['high'] = ticker_data[8]
+			self.market_info['low'] = ticker_data[9]
 
 	def handle_raw_books(self, data):
 			

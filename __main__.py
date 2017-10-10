@@ -3,9 +3,9 @@ import json
 import urwid
 import asyncio
 from random import randint
-from display.displaycommon import *
-from display.displayhome import *
-from display.displaymarket import DisplayMarket
+from mvc.displaycommon import *
+from mvc.displayhome import *
+from mvc.displaymarket import DisplayMarket
 from initdb import *
 from exchanges.bitfinex import Bitfinex
 from exchanges.gdax import GDAX

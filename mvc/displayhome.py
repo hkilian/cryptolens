@@ -64,8 +64,8 @@ class HomeView(urwid.WidgetWrap):
 		self.controller = controller
 
 		self.mainPileList = []
-		self.leftColumn = urwid.Pile([])
-		self.rightColumn = urwid.Pile([])
+		self.left_column = urwid.Pile([])
+		self.right_column = urwid.Pile([])
 
 		self.best_price = urwid.Text("Connecting...")
 
@@ -73,6 +73,7 @@ class HomeView(urwid.WidgetWrap):
 		self.prepare_order_book()
 
 		# Prepare left pane
+		self.prepare_graph()
 		self.prepare_market_info_pane()
 		self.prepare_stats_pane()
 		self.prepare_left_pane()
@@ -83,26 +84,26 @@ class HomeView(urwid.WidgetWrap):
 
 		# Get the orderbook
 		orderbook = self.controller.get_orderbook()
-		market_info = self.controller.market_info
+		market_info = self.controller.get_market_info()
 
 		# Get the best price
 		self.best_price.set_text(str(orderbook.best_sell))
 
 		# Update the sell table
 		sell_data = []
-		for key in orderbook.sellOrders.islice(0, 18, reverse=True):
+		for key in orderbook.sellOrders.islice(0, 35, reverse=True):
 			amount = "{:.10f}".format(orderbook.sellOrders[key])
 			sell_data.append([key, amount, 0])
 
-		self.sellTable.update_data(sell_data)
+		self.sell_table.update_data(sell_data)
 
 		# Update the buy table
 		buy_data = []
-		for key in itertools.islice(reversed(orderbook.buyOrders), 0, 18):
+		for key in itertools.islice(reversed(orderbook.buyOrders), 0, 35):
 			amount = "{:.10f}".format(orderbook.buyOrders[key])
 			buy_data.append([key, amount, 0])
 
-		self.buyTable.update_data(buy_data)
+		self.buy_table.update_data(buy_data)
 
 		# Update info pane
 		info_data = []
@@ -116,7 +117,13 @@ class HomeView(urwid.WidgetWrap):
 
 		# Update market pane
 		market_data = []
-		market_data.append(['Total volume', market_info['volume']])
+		market_data.append(['24hr Total volume', market_info['volume']])
+		market_data.append(['24hr Daily Change', market_info['daily_change']])
+		market_data.append(['24hr Daily Percent Change', market_info['daily_perc_change']])
+		market_data.append(['24hr High', market_info['high']])
+		market_data.append(['24hr Low', market_info['low']])
+		market_data.append(['Ask Size', market_info['ask_size']])
+		market_data.append(['Buy Size', market_info['bid_size']])
 
 		self.market_info_table.update_data(market_data)
 
@@ -124,20 +131,40 @@ class HomeView(urwid.WidgetWrap):
 		price = str(self.controller.get_price_data())
 
 		# Prepare body
-		columnList = [self.leftColumn, (40, self.rightColumn)]
+		columnList = [self.left_column, (40, self.right_column)]
 		body = urwid.Columns(columnList)
 		body = urwid.Padding(body, left=2, right=2)
 
 		return body
 
 	def prepare_left_pane(self):
-		self.leftColumn = urwid.Pile([(8, self.market_info_table), self.stats_table])
+
+		self.live_stats = urwid.Pile([(9,  self.market_info_table), self.stats_table])
+
+		graph_text = urwid.Text("Live BTC/USD Chart", align='right')
+		graph_text = urwid.AttrWrap(graph_text, 'headers')
+
+		graph_pane = urwid.Pile([self.graph, ('pack', graph_text)])
+
+		self.left_column = urwid.Pile([graph_pane, self.live_stats])
+		self.left_column = urwid.Padding(self.left_column, align='left', right=4)
 
 	def prepare_market_info_pane(self):
 
 		columnList = ['Market Info']
-		self.market_info_table = Table(2, 6, column_names=columnList)
+		self.market_info_table = Table(2, 7, column_names=columnList)
 		self.market_info_table.create_table()
+
+	def prepare_graph(self):
+
+		columnList = ['Stats']
+		
+		graph_body = urwid.Text("Graph!")
+
+		listwalker = urwid.SimpleListWalker([graph_body])
+		self.graph = urwid.ListBox(listwalker)
+		self.graph = urwid.AttrWrap(self.graph, 'listbox')
+		self.graph = urwid.LineBox(self.graph)
 
 	def prepare_stats_pane(self):
 
@@ -151,17 +178,17 @@ class HomeView(urwid.WidgetWrap):
 		column_headers = urwid.Columns(column_list)
 		column_headers = urwid.Filler(column_headers, valign='middle', top=1, bottom=1)
 
-		self.sellTable = Table(3, 30, fillbottom=True, column_widths=[12,0,6])
-		self.sellTable.create_table()
+		self.sell_table = Table(3, 30, fillbottom=True, column_widths=[12,0,6])
+		self.sell_table.create_table()
 
-		self.sellTable._w.set_focus(self.sellTable.row_count - 1)
+		self.sell_table._w.set_focus(self.sell_table.row_count - 1)
 
-		self.buyTable = Table(3, 30, column_widths=[12,0,6])
-		self.buyTable.create_table()
+		self.buy_table = Table(3, 30, column_widths=[12,0,6])
+		self.buy_table.create_table()
 
 		best_price_widget = urwid.Padding(self.best_price, align="center", width='pack')
 		best_price_widget = urwid.Filler(best_price_widget, valign='middle', top=1, bottom=1)
-		self.rightColumn = urwid.Pile([(1, column_headers), self.sellTable, (3, best_price_widget), self.buyTable])
+		self.right_column = urwid.Pile([(1, column_headers), self.sell_table, (3, best_price_widget), self.buy_table])
 
 class HomeController:
 	def __init__(self):
