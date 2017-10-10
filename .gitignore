@@ -17,6 +17,7 @@ pip-selfcheck.json
 ehthumbs.db
 Thumbs.db
 __pycache__
+*.db
 
 
 # Byte-compiled / optimized / DLL files
