@@ -2,7 +2,7 @@ from decimal import *
 import sys, os
 import logging
 from sortedcontainers import SortedDict
-import config
+import cryptolens.config
 
 logging.basicConfig(filename='output.log',level=logging.INFO)
 

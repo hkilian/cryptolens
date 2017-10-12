@@ -8,8 +8,8 @@ import itertools
 import logging
 from sortedcontainers import SortedDict
 
-import config
-from core.orderbook import *
+import cryptolens.config
+from cryptolens.core.orderbook import *
 
 logging.basicConfig(filename='output.log',level=logging.INFO)
 logging.getLogger().setLevel(logging.INFO)

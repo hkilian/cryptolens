@@ -1,6 +1,6 @@
 from peewee import *
 from database import *
-from exchanges.exchange import ExchangeInfo
+from cryptolens.exchanges.exchange import ExchangeInfo
 
 class Asset(Model):
 

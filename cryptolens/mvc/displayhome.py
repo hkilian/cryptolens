@@ -4,9 +4,8 @@ import urwid
 import websockets
 import json
 from .displaycommon import *
-from exchanges.bitfinex import Bitfinex
-from core.orderbook import Orderbook
-from daemon.processor import BitfinexProcessor
+from cryptolens.core.orderbook import Orderbook
+from cryptolens.daemon.processor import BitfinexProcessor
 
 class HomeModel:
 	def __init__(self):
@@ -22,14 +21,6 @@ class HomeModel:
 
 	def get_market_info(self):
 		return self.bitfinex_processor.market_info
-
-	@asyncio.coroutine
-	def get_price(self):
-		while True:
-			bitfinex = Bitfinex()
-			data = bitfinex.PullData()
-			self.latest_price = data['price']
-			yield from asyncio.sleep(1)
 
 	@asyncio.coroutine
 	def get_orders(self):

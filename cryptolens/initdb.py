@@ -4,10 +4,10 @@ import requests
 from peewee import *
 import click
 
-import database
+import cryptolens.database
 from asset import *
-from exchanges.exchange import Exchange
-from exchanges.bitrex import Bitrex
+from cryptolens.exchanges.exchange import Exchange
+from cryptolens.exchanges.bitrex import Bitrex
 
 # Used to get path of this script
 __location__ = os.path.realpath(

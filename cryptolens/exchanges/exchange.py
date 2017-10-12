@@ -1,5 +1,5 @@
 from peewee import *
-from database import *
+from cryptolens.database import *
 
 class ExchangeInfo(Model):
 

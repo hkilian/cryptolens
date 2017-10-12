@@ -5,7 +5,7 @@ from os import path
 setup(
 
     name='cryptolens',
-    version='0.1.11',
+    version='0.1.12',
     description = 'Command line tool to monitor the prices of cryptocurrencies',
     url='https://github.com/hkilian/cryptolens',
     author = 'Harry Kilian',
@@ -43,12 +43,12 @@ setup(
 
     entry_points={
        'console_scripts': [
-           'cryptolens = cryptolens.__main__:main',
-           'crypto = cryptolens.__main__:main',
+           'cryptolens = cryptolens.main:main',
+           'crypto = cryptolens.main:main',
        ],
     },
-
-    packages=find_packages(),
+    
+    packages=['cryptolens', 'cryptolens.mvc', 'cryptolens.core', 'cryptolens.daemon', 'cryptolens.exchanges'],
 
 )
 
