@@ -6,8 +6,7 @@ import urwid
 import asyncio
 from random import randint
 from cryptolens.mvc.displaycommon import *
-from cryptolens.mvc.displayhome import *
-from cryptolens.mvc.displaymarket import DisplayMarket
+from cryptolens.mvc.displaymarket import *
 
 palette = [
 	('titlebar', 'dark red, bold', ''),
@@ -28,7 +27,7 @@ def main():
 	footer = Footer()
 
 	# MVC
-	controller = HomeController()
+	controller = MarketController()
 
 	# Create the view
 	view = urwid.Frame(header=header, body=controller.view, footer=footer)
